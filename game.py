@@ -26,31 +26,71 @@ class entity:
     if not (x+self.w < 0 or y+self.h < 0 or x > width or y > height):
       screen.blit(img,(x,y))
 
+class block:
+  def __init__(self,images,drop,n):
+    self.images = images
+    self.drop = drop
+    self.next = n
+
 class tile(entity):
   width = 100
   height = 100
 
-  images = ["grass.png","grass2.png","flowers.png","tree.png","stump.png","fence.png","fenceUp.png","corner.png","corner2.png"]
-  solidTiles = {3:["wood",4],5:["wood",1],6:["wood",1],7:["wood",1],8:["wood",1],9:["wood",1]}
+  images = ["grass","grass2","flowers","tree","stump","fence","fenceUp","corner","corner2","crossing","crossing2","intersection"]
+  blocks = {"tree":block([3],"wood",4),"fence":block([5,6,7,8,9,10,11],"wood",0)}
   for i in range(len(images)):
-    images[i] = pygame.image.load("images/"+images[i])
+    images[i] = pygame.image.load("images/"+images[i]+".png")
     images[i] = pygame.transform.scale(images[i],(width,height))
 
   def __init__(self,img,x,y):
     super().__init__(x,y,self.width,self.height)
     self.changeTile(img)
 
+  def orient(self,Map):
+     x,y = self.x//self.width,self.y//self.height
+     neibors = [Map[x-1][y],Map[x+1][y],Map[x][y-1],Map[x][y+1]]
+     for i in range(4):
+       neibors[i] = neibors[i].block == self.block
+     if neibors[0] and neibors[1] and neibors[2] and neibors[3]:
+       return self.blocks[self.block].images[-1]
+     if neibors[0] and neibors[1] and neibors[2]:
+       return self.blocks[self.block].images[5]
+     if neibors[0] and neibors[1] and neibors[3]:
+       return self.blocks[self.block].images[4]
+     if neibors[1] and neibors[2]:
+       return self.blocks[self.block].images[2]
+     if neibors[1] and neibors[3]:
+       return self.blocks[self.block].images[3]
+     if neibors[0] and neibors[3]:
+       self.reflect = [True,False]
+       return self.blocks[self.block].images[3]
+     if neibors[0] and neibors[2]:
+       self.reflect = [True,False]
+       return self.blocks[self.block].images[2]
+     if neibors[2] or neibors[3]:
+       return self.blocks[self.block].images[1]
+     return self.blocks[self.block].images[0]
+
   def changeTile(self,img):
     self.img = img
-    if img in self.solidTiles:
-      self.drop = self.solidTiles[img][0]
-      self.next = self.solidTiles[img][1]
+    self.reflect = [False,False]
+    if img in self.blocks:
+      self.drop  = self.blocks[img].drop
+      self.next  = self.blocks[img].next
+      self.block = img
+      self.img = self.orient(Map) if len(self.blocks[img].images)>1 else self.blocks[img].images[0]
       self.solid = True
     else:
       self.solid = False
+      self.block = ""
 
   def draw(self):
-    self.plot(self.images[self.img])
+    image = self.images[self.img]
+    if self.reflect == [False,True]:
+      print("hello")
+    if self.reflect != [False,False]:
+      image = pygame.transform.flip(image,self.reflect[0],self.reflect[1])
+    self.plot(image)
 
 class tool(entity):
   def __init__(self,image,w,h,c,kb,d,des = False):
@@ -227,7 +267,7 @@ class player(sprite):
     if pygame.mouse.get_pressed()[2] and self.invent["wood"] >0:
       x = int((self.x+mousePos[0]-width/2)/tile.width)
       y = int((self.y+mousePos[1]-height/2)/tile.height)
-      Map[x][y].changeTile(5)
+      Map[x][y].changeTile("fence")
       self.invent[Map[x][y].drop] -= 1
 
     self.updateVel()
@@ -249,7 +289,7 @@ def generateMap(w,h):
   for x in range(w):
     col = []
     for y in range(h):
-      col += [tile(random.randint(0,3),x*tile.width,y*tile.height)]
+      col += [tile(random.choice([0,1,2,"tree"]),x*tile.width,y*tile.height)]
     Map += [col]
   return Map
 

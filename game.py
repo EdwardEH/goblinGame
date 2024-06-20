@@ -36,8 +36,8 @@ class tile(entity):
   width = 100
   height = 100
 
-  images = ["grass","grass2","flowers","tree","stump","fence","fenceUp","corner","corner2","crossing","crossing2","intersection"]
-  blocks = {"tree":block([3],"wood",4),"fence":block([5,6,7,8,9,10,11],"wood",0)}
+  images = ["grass","grass2","flowers","tree","stump","fence","fenceUp","corner","corner2","crossing","crossing2","crossing3","intersection"]
+  blocks = {"tree":block([3],"wood",4),"fence":block([5,6,7,8,9,10,11,12],"wood",0)}
   for i in range(len(images)):
     images[i] = pygame.image.load("images/"+images[i]+".png")
     images[i] = pygame.transform.scale(images[i],(width,height))
@@ -57,6 +57,11 @@ class tile(entity):
        return self.blocks[self.block].images[5]
      if neibors[0] and neibors[1] and neibors[3]:
        return self.blocks[self.block].images[4]
+     if neibors[2] and neibors[3] and neibors[0]:
+       return self.blocks[self.block].images[6]
+     if neibors[2] and neibors[3] and neibors[1]:
+       self.reflect = [True,False]
+       return self.blocks[self.block].images[6]
      if neibors[1] and neibors[2]:
        return self.blocks[self.block].images[2]
      if neibors[1] and neibors[3]:
@@ -78,7 +83,15 @@ class tile(entity):
       self.drop  = self.blocks[img].drop
       self.next  = self.blocks[img].next
       self.block = img
-      self.img = self.orient(Map) if len(self.blocks[img].images)>1 else self.blocks[img].images[0]
+      if len(self.blocks[img].images)>1:
+        self.img = self.orient(Map)
+        x,y = self.x//self.width,self.y//self.height
+        neibors = [Map[x-1][y],Map[x+1][y],Map[x][y-1],Map[x][y+1]]
+        for i in range(4):
+          if neibors[i].block == self.block:
+            neibors[i].img = neibors[i].orient(Map)
+      else:
+        self.img = self.blocks[img].images[0]
       self.solid = True
     else:
       self.solid = False
@@ -86,8 +99,6 @@ class tile(entity):
 
   def draw(self):
     image = self.images[self.img]
-    if self.reflect == [False,True]:
-      print("hello")
     if self.reflect != [False,False]:
       image = pygame.transform.flip(image,self.reflect[0],self.reflect[1])
     self.plot(image)
@@ -260,15 +271,17 @@ class player(sprite):
       self.vel[1] -= 1
     if keys[self.k[3]]:
       self.vel[1] += 1
-    if pygame.mouse.get_pressed()[0]:
+    if pygame.mouse.get_pressed()[0] and mouseDown[0]:
       self.tools[self.holding].use(self)
+      mouseDown[0] = False
     if keys[self.k[4]]:
       self.roll()
-    if pygame.mouse.get_pressed()[2] and self.invent["wood"] >0:
+    if pygame.mouse.get_pressed()[2] and mouseDown[1] and self.invent["wood"] >0:
       x = int((self.x+mousePos[0]-width/2)/tile.width)
       y = int((self.y+mousePos[1]-height/2)/tile.height)
       Map[x][y].changeTile("fence")
       self.invent[Map[x][y].drop] -= 1
+      mouseDown[1] = False
 
     self.updateVel()
     self.bounce(objects,Map)
@@ -293,6 +306,13 @@ def generateMap(w,h):
     Map += [col]
   return Map
 
+def newEnemy():
+  x = random.randint(int(goblin.x-width/2),int(goblin.x+width/2))
+  y = random.randint(int(goblin.y-width/2),int(goblin.y+width/2))
+  slime = enemy(x,y,["images/slime.png","images/slime2.png"],40,40,0.05,0.3)
+  return slime
+  
+
 pygame.init()
 width = 1000
 height = 600
@@ -305,6 +325,7 @@ Map = generateMap(mapWidth,mapHeight)
 
 clock = pygame.time.Clock()
 mousePos = (0,0)
+mouseDown = [True,True]
 keys = []
 
 sword = tool("images/sword.png",76,28,10,10,65)
@@ -314,10 +335,6 @@ goblin = player(tile.width*mapWidth/2,tile.height*mapHeight/2,["images/goblin.pn
 goblin.tools += [hammer,sword,axe]
 
 objects = [goblin]
-for i in range(3):
-   slime = enemy(random.randint(0,width),random.randint(0,height),
-           ["images/slime.png","images/slime2.png"],40,40,0.05,0.3)
-   objects += [slime]
 
 running = True
 while running:
@@ -331,6 +348,8 @@ while running:
     if event.type == pygame.KEYDOWN:
       if event.key == pygame.K_q:
         goblin.holding = (goblin.holding+1)%len(goblin.tools)
+    if event.type == pygame.MOUSEBUTTONUP:
+      mouseDown = [True,True]
 
   for col in Map:
     for t in col:
@@ -339,6 +358,9 @@ while running:
   for obj in objects:
     obj.update()
     obj.draw(screen)
+
+  if len(objects) < 4:
+    objects += [newEnemy()]
   
   pygame.display.update() 
   clock.tick(40) #use the clock to cap the framerate
